@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: gedungku_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes: [db_data:/var/lib/postgresql/data]
+    networks: [gedungku_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    image: gedungku/api:1.0
+    container_name: gedungku_api
+    restart: unless-stopped
+    env_file: .env
+    environment: { DB_HOST: db }
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [gedungku_net]
+
+  nginx:
+    build: ./frontend
+    image: gedungku/frontend:1.0
+    container_name: gedungku_nginx
+    restart: unless-stopped
+    ports: ["80:80"]
+    depends_on: [api]
+    networks: [gedungku_net]
+
+  adminer:
+    image: adminer
+    container_name: gedungku_adminer
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    volumes:
+      - ./adminer/adminer.css:/var/www/html/adminer.css:ro
+    ports: ["8081:8080"]
+    depends_on: [db]
+    networks: [gedungku_net]
+
+volumes:
+  db_data:
+
+networks:
+  gedungku_net:
