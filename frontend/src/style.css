@@ -47,45 +47,9 @@ table{width:100%;border-collapse:collapse;background:#fff}th,td{padding:.5rem;bo
 .line-form input:focus{border-bottom-color:var(--gold);outline:0}.line-form button{margin-top:1.5rem}
 .auth-alt{text-align:center;font-size:.9rem;margin-top:1.5rem}
 @media(max-width:700px){.gcard{flex-direction:column}.gcard img{width:100%;min-height:180px}.tab{font-size:.85rem}}
-
-/* ===== Dashboard admin: angka, badge status, tombol aksi ===== */
-.stats h2{font-family:system-ui,sans-serif;font-variant-numeric:lining-nums}
-.badge{display:inline-block;padding:.15rem .7rem;border-radius:999px;font-size:.8rem;font-weight:600;text-transform:capitalize;background:#eee;color:#555}
-.badge.menunggu{background:#fff4d6;color:#8a6200}
-.badge.disetujui{background:#dff3e4;color:#1b7a3a}
-.badge.ditolak{background:#fbe0de;color:#b3261e}
-.badge.dibatalkan{background:#e8e8e8;color:#666}
-td.aksi{white-space:nowrap}
-.aksi button,.aksi .aksi-edit{padding:.3rem .8rem;border-radius:8px;font-size:.85rem;margin-right:.4rem;border:0;cursor:pointer;color:#fff;text-decoration:none;display:inline-block}
-.aksi button.aksi-ok{background:#1b7a3a}
-.aksi button.aksi-no{background:#b3261e}
-.aksi .aksi-edit{background:var(--gold)}
-
-/* ===== Dashboard admin: statistik tambahan dan filter ===== */
-.stats small{display:block;color:#7a6a63;margin-top:.2rem}
-.filter{display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:.8rem}
-.filter input,.filter select{flex:1 1 180px;width:auto;margin:0}
-.hasil{color:#7a6a63;font-size:.9rem;margin:.2rem 0 .6rem}
-
-   .thumb{width:64px;height:44px;object-fit:cover;border-radius:6px;background:var(--line);display:block}
-
-   /* ===== Dashboard admin: prioritas pesanan ===== */
-.card.klik{cursor:pointer}
-.card.perhatian{border:2px solid var(--gold);background:#fff8ea}
-tr.menunggu-row{background:#fffaf0}
-
-/* ===== Dashboard admin: notifikasi, jam sesi, tombol, navbar ===== */
-.toast{position:fixed;bottom:1rem;right:1rem;z-index:50;max-width:340px;padding:.8rem 1.1rem;border-radius:10px;color:#fff;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25)}
-.toast.ok{background:#1b7a3a}
-.toast.gagal{background:#b3261e}
-.jam{display:block;color:#7a6a63;font-size:.78rem;white-space:nowrap}
-nav .akun{opacity:.9;padding-left:1rem;border-left:1px solid rgba(255,255,255,.35)}
-
-/* ===== Dashboard admin: lebarkan halaman agar tabel muat ===== */
-.lebar{position:relative;left:50%;transform:translateX(-50%);width:min(1200px,94vw)}
-.lebar table{font-size:.9rem}
-.lebar th,.lebar td{padding:.5rem .45rem}
-.lebar td:nth-child(5),.lebar td:nth-child(7){white-space:nowrap}
-
-   /* ===== Kontak pemesan dan alasan penolakan ===== */
-   .kontak{display:block;color:#7a6a63;font-size:.78rem;word-break:break-word;max-width:220px}
+/* [ULASAN] */
+.rate{color:#5b4a44}.bintang{color:var(--gold);letter-spacing:2px}
+button.star{background:none;color:var(--gold);font-size:1.9rem;padding:0 .15rem;line-height:1}
+.ulasan{margin-bottom:.8rem}.verif{color:#1b7a3a;font-size:.8rem;font-weight:600}
+.balasan{background:#fff8ea;border-left:3px solid var(--gold);padding:.5rem .8rem;margin:.5rem 0 0}
+textarea{resize:vertical}
