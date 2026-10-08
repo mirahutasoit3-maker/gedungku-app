@@ -10,6 +10,9 @@ app.secret_key = os.environ["SECRET_KEY"]
 SESI = ["pagi", "siang", "malam"]
 KATEGORI = ("pernikahan", "adat", "ulang_tahun")
 AKTIF = "status IN ('menunggu','disetujui')"
+# [ULASAN] acara dianggap selesai bila jam akhir sesi (pagi 12.00, siang 17.00, malam 23.00 WIB) sudah lewat
+SELESAI = ("(b.tanggal + CASE b.sesi WHEN 'pagi' THEN time '12:00' WHEN 'siang' THEN time '17:00' ELSE time '23:00' END) "
+           "< (now() AT TIME ZONE 'Asia/Jakarta')")
 
 def connect():
     return psycopg2.connect(host=os.environ["DB_HOST"], dbname=os.environ["DB_NAME"],
@@ -50,7 +53,13 @@ CREATE TABLE IF NOT EXISTS booking(id SERIAL PRIMARY KEY, user_id INT REFERENCES
   sesi TEXT NOT NULL, total BIGINT NOT NULL, status TEXT NOT NULL DEFAULT 'menunggu', dibuat TIMESTAMP DEFAULT now());
 CREATE UNIQUE INDEX IF NOT EXISTS uq_slot ON booking(gedung_id, tanggal, sesi) WHERE {AKTIF};
 ALTER TABLE gedung ADD COLUMN IF NOT EXISTS kategori TEXT NOT NULL DEFAULT 'pernikahan';
-ALTER TABLE booking ADD COLUMN IF NOT EXISTS alasan TEXT;
+CREATE TABLE IF NOT EXISTS ulasan(id SERIAL PRIMARY KEY,
+  booking_id INT UNIQUE NOT NULL REFERENCES booking(id) ON DELETE CASCADE,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  gedung_id INT NOT NULL REFERENCES gedung(id) ON DELETE CASCADE,
+  rating SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  komentar TEXT, balasan TEXT, tersembunyi BOOLEAN NOT NULL DEFAULT false,
+  dibuat TIMESTAMP DEFAULT now());
 """
 
 SEED_KAT = {
@@ -68,6 +77,7 @@ def init_db():
     for _ in range(20):
         try:
             c = connect(); cur = c.cursor()
+            cur.execute("SELECT pg_advisory_xact_lock(7342)")  # kunci agar 2 worker tidak bentrok
             cur.execute(SCHEMA)
             cur.execute("SELECT 1 FROM users WHERE role='admin'")
             if not cur.fetchone():
@@ -129,9 +139,13 @@ def list_gedung():
         tgl = date.fromisoformat(request.args.get("tanggal", ""))
     except ValueError:
         tgl = date.today()
+    # [ULASAN] ditambah rata_rating dan jml_ulasan
     return jsonify(q(
         f"SELECT g.*, {len(SESI)} - (SELECT count(*) FROM booking b WHERE b.gedung_id=g.id "
-        f"AND b.tanggal=%s AND b.{AKTIF}) AS sisa_sesi FROM gedung g "
+        f"AND b.tanggal=%s AND b.{AKTIF}) AS sisa_sesi, "
+        "(SELECT coalesce(round(avg(u.rating),1),0)::float FROM ulasan u WHERE u.gedung_id=g.id AND NOT u.tersembunyi) AS rata_rating, "
+        "(SELECT count(*) FROM ulasan u WHERE u.gedung_id=g.id AND NOT u.tersembunyi) AS jml_ulasan "
+        "FROM gedung g "
         "WHERE (%s='' OR g.kategori=%s) AND (g.nama ILIKE %s OR g.kota ILIKE %s) ORDER BY g.nama",
         (tgl, kat, kat, cari, cari)))
 
@@ -140,7 +154,13 @@ def get_gedung(gid):
     g_ = q("SELECT * FROM gedung WHERE id=%s", (gid,), one=True)
     if not g_: return err("Gedung tidak ditemukan.", 404)
     terisi = q(f"SELECT tanggal::text tanggal, sesi FROM booking WHERE gedung_id=%s AND tanggal>=CURRENT_DATE AND {AKTIF} ORDER BY tanggal", (gid,))
-    return jsonify(gedung=g_, terisi=terisi)
+    # [ULASAN] daftar ulasan dan ringkasan rating
+    ulasan = q("SELECT u.id, u.rating, u.komentar, u.balasan, u.dibuat::date::text tanggal, "
+               "split_part(us.nama,' ',1) AS nama FROM ulasan u JOIN users us ON us.id=u.user_id "
+               "WHERE u.gedung_id=%s AND NOT u.tersembunyi ORDER BY u.id DESC LIMIT 50", (gid,))
+    rating = q("SELECT coalesce(round(avg(rating),1),0)::float rata, count(*) jumlah "
+               "FROM ulasan WHERE gedung_id=%s AND NOT tersembunyi", (gid,), one=True)
+    return jsonify(gedung=g_, terisi=terisi, ulasan=ulasan, rating=rating)
 
 @app.post("/api/gedung/<int:gid>/booking")
 def buat_booking(gid):
@@ -166,13 +186,41 @@ def buat_booking(gid):
 @app.get("/api/riwayat")
 def riwayat():
     if (e := need()): return e
-    return jsonify(q("SELECT b.id, b.jenis_acara, b.tanggal::text tanggal, b.sesi, b.total, b.status, b.alasan, g.nama gedung "
-                     "FROM booking b JOIN gedung g ON g.id=b.gedung_id WHERE b.user_id=%s ORDER BY b.id DESC", (session["uid"],)))
+    # [ULASAN] bisa_ulas: disetujui dan jam sesi sudah berakhir (waktu WIB)
+    return jsonify(q("SELECT b.id, b.jenis_acara, b.tanggal::text tanggal, b.sesi, b.total, b.status, g.nama gedung, "
+                     "(b.status='disetujui' AND " + SELESAI + ") AS bisa_ulas, "
+                     "u.id AS ulasan_id, u.rating, u.komentar "
+                     "FROM booking b JOIN gedung g ON g.id=b.gedung_id LEFT JOIN ulasan u ON u.booking_id=b.id "
+                     "WHERE b.user_id=%s ORDER BY b.id DESC", (session["uid"],)))
 
 @app.post("/api/booking/<int:bid>/batal")
 def batal(bid):
     if (e := need()): return e
     q("UPDATE booking SET status='dibatalkan' WHERE id=%s AND user_id=%s AND status='menunggu'", (bid, session["uid"]))
+    return jsonify(ok=True)
+
+# [ULASAN] kirim ulasan: pesanan milik sendiri, disetujui, sesi sudah berakhir, belum pernah diulas
+@app.post("/api/booking/<int:bid>/ulasan")
+def kirim_ulasan(bid):
+    if (e := need()): return e
+    d = request.get_json() or {}
+    try:
+        rating = int(d.get("rating"))
+    except (TypeError, ValueError):
+        return err("Rating harus berupa angka 1 sampai 5.")
+    if not 1 <= rating <= 5:
+        return err("Rating harus berupa angka 1 sampai 5.")
+    komentar = (d.get("komentar") or "").strip()[:1000] or None
+    b = q("SELECT b.gedung_id, b.status, " + SELESAI + " AS selesai "
+          "FROM booking b WHERE b.id=%s AND b.user_id=%s", (bid, session["uid"]), one=True)
+    if not b: return err("Pesanan tidak ditemukan.", 404)
+    if b["status"] != "disetujui" or not b["selesai"]:
+        return err("Ulasan hanya bisa diberikan setelah acara selesai.", 403)
+    try:
+        q("INSERT INTO ulasan(booking_id,user_id,gedung_id,rating,komentar) VALUES(%s,%s,%s,%s,%s)",
+          (bid, session["uid"], b["gedung_id"], rating, komentar))
+    except psycopg2.IntegrityError:
+        db().rollback(); return err("Pesanan ini sudah diulas.", 409)
     return jsonify(ok=True)
 
 # ---------- Admin ----------
@@ -181,9 +229,12 @@ def admin_summary():
     if (e := need(True)): return e
     s = q("SELECT (SELECT count(*) FROM gedung) gedung, (SELECT count(*) FROM booking WHERE status='menunggu') menunggu, "
           "(SELECT coalesce(sum(total),0)::bigint FROM booking WHERE status='disetujui') omzet", one=True)
-    rows = q("SELECT b.id, b.jenis_acara, b.tanggal::text tanggal, b.sesi, b.total, b.status, b.alasan, g.nama gedung, u.nama pemesan, u.email pemesan_email "
+    rows = q("SELECT b.id, b.jenis_acara, b.tanggal::text tanggal, b.sesi, b.total, b.status, g.nama gedung, u.nama pemesan "
              "FROM booking b JOIN gedung g ON g.id=b.gedung_id JOIN users u ON u.id=b.user_id ORDER BY b.id DESC")
-    return jsonify(stats=s, booking=rows, gedung=q("SELECT * FROM gedung ORDER BY id"))
+    # [ULASAN] daftar ulasan untuk admin
+    ulasan = q("SELECT u.id, u.rating, u.komentar, u.balasan, u.tersembunyi, g.nama gedung, us.nama pemesan "
+               "FROM ulasan u JOIN gedung g ON g.id=u.gedung_id JOIN users us ON us.id=u.user_id ORDER BY u.id DESC")
+    return jsonify(stats=s, booking=rows, gedung=q("SELECT * FROM gedung ORDER BY id"), ulasan=ulasan)
 
 def gedung_values(d):
     return (d.get("nama"), d.get("kota"), d.get("alamat"), int(d.get("kapasitas") or 0),
@@ -214,9 +265,20 @@ def aksi_booking(bid, aksi):
     if (e := need(True)): return e
     st = {"setujui": "disetujui", "tolak": "ditolak"}.get(aksi)
     if not st: return err("Aksi tidak dikenal.", 404)
-    alasan = None
-    if aksi == "tolak":
-        alasan = ((request.get_json(silent=True) or {}).get("alasan") or "").strip()[:300] or None
-    q("UPDATE booking SET status=%s, alasan=%s WHERE id=%s", (st, alasan, bid)); return jsonify(ok=True)
+    q("UPDATE booking SET status=%s WHERE id=%s", (st, bid)); return jsonify(ok=True)
+
+# [ULASAN] moderasi admin
+@app.post("/api/admin/ulasan/<int:uid_>/sembunyikan")
+def sembunyikan_ulasan(uid_):
+    if (e := need(True)): return e
+    q("UPDATE ulasan SET tersembunyi = NOT tersembunyi WHERE id=%s", (uid_,))
+    return jsonify(ok=True)
+
+@app.post("/api/admin/ulasan/<int:uid_>/balas")
+def balas_ulasan(uid_):
+    if (e := need(True)): return e
+    t = ((request.get_json() or {}).get("balasan") or "").strip()[:1000] or None
+    q("UPDATE ulasan SET balasan=%s WHERE id=%s", (t, uid_))
+    return jsonify(ok=True)
 
 init_db()
