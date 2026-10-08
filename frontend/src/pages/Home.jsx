@@ -52,6 +52,12 @@ export default function Home() {
             <img src={x.foto_url || DEFAULT_IMG} alt={x.nama} />
             <div className="gbody">
               <h3>{x.nama}</h3>
+              {/* [ULASAN] rating rata-rata dan jumlah ulasan */}
+              <div className="rate">
+                {x.jml_ulasan > 0
+                  ? <>⭐ <b>{Number(x.rata_rating).toLocaleString("id-ID", { minimumFractionDigits: 1 })}</b> ({x.jml_ulasan} ulasan)</>
+                  : <small>Belum ada ulasan</small>}
+              </div>
               <div className="meta">
                 <span>📅 {label}</span>
                 <span>🕗 08.00 - 23.00</span>

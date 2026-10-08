@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { api, rp } from "../api.js";
 import { DEFAULT_IMG, TABS } from "../config.js";
+import { Bintang } from "../Bintang.jsx"; // [ULASAN]
 
 const SESI = [["pagi", "Pagi (08.00 - 12.00)"], ["siang", "Siang (13.00 - 17.00)"], ["malam", "Malam (19.00 - 23.00)"]];
 
@@ -72,6 +73,19 @@ export default function Detail({ user }) {
           {d.terisi.length === 0 && <p>Belum ada jadwal terisi.</p>}
         </div>
       </div>
+
+      {/* [ULASAN] daftar ulasan */}
+      <h2 style={{ marginTop: "1.5rem" }}>Ulasan ({d.rating.jumlah})</h2>
+      {d.rating.jumlah > 0 && <p className="price">⭐ {d.rating.rata} / 5</p>}
+      {d.ulasan.map((u) => (
+        <div className="card ulasan" key={u.id}>
+          <b>{u.nama}</b> <span className="verif">✔ Pesanan terverifikasi</span> · <small>{u.tanggal}</small>
+          <div><Bintang nilai={u.rating} /></div>
+          {u.komentar && <p>{u.komentar}</p>}
+          {u.balasan && <p className="balasan"><b>Balasan pengelola:</b> {u.balasan}</p>}
+        </div>
+      ))}
+      {d.ulasan.length === 0 && <p>Belum ada ulasan untuk gedung ini.</p>}
     </>
   );
 }
