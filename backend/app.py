@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS booking(id SERIAL PRIMARY KEY, user_id INT REFERENCES
   sesi TEXT NOT NULL, total BIGINT NOT NULL, status TEXT NOT NULL DEFAULT 'menunggu', dibuat TIMESTAMP DEFAULT now());
 CREATE UNIQUE INDEX IF NOT EXISTS uq_slot ON booking(gedung_id, tanggal, sesi) WHERE {AKTIF};
 ALTER TABLE gedung ADD COLUMN IF NOT EXISTS kategori TEXT NOT NULL DEFAULT 'pernikahan';
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS alasan TEXT;
 """
 
 SEED_KAT = {
@@ -165,7 +166,7 @@ def buat_booking(gid):
 @app.get("/api/riwayat")
 def riwayat():
     if (e := need()): return e
-    return jsonify(q("SELECT b.id, b.jenis_acara, b.tanggal::text tanggal, b.sesi, b.total, b.status, g.nama gedung "
+    return jsonify(q("SELECT b.id, b.jenis_acara, b.tanggal::text tanggal, b.sesi, b.total, b.status, b.alasan, g.nama gedung "
                      "FROM booking b JOIN gedung g ON g.id=b.gedung_id WHERE b.user_id=%s ORDER BY b.id DESC", (session["uid"],)))
 
 @app.post("/api/booking/<int:bid>/batal")
@@ -180,7 +181,7 @@ def admin_summary():
     if (e := need(True)): return e
     s = q("SELECT (SELECT count(*) FROM gedung) gedung, (SELECT count(*) FROM booking WHERE status='menunggu') menunggu, "
           "(SELECT coalesce(sum(total),0)::bigint FROM booking WHERE status='disetujui') omzet", one=True)
-    rows = q("SELECT b.id, b.jenis_acara, b.tanggal::text tanggal, b.sesi, b.total, b.status, g.nama gedung, u.nama pemesan "
+    rows = q("SELECT b.id, b.jenis_acara, b.tanggal::text tanggal, b.sesi, b.total, b.status, b.alasan, g.nama gedung, u.nama pemesan, u.email pemesan_email "
              "FROM booking b JOIN gedung g ON g.id=b.gedung_id JOIN users u ON u.id=b.user_id ORDER BY b.id DESC")
     return jsonify(stats=s, booking=rows, gedung=q("SELECT * FROM gedung ORDER BY id"))
 
@@ -213,6 +214,9 @@ def aksi_booking(bid, aksi):
     if (e := need(True)): return e
     st = {"setujui": "disetujui", "tolak": "ditolak"}.get(aksi)
     if not st: return err("Aksi tidak dikenal.", 404)
-    q("UPDATE booking SET status=%s WHERE id=%s", (st, bid)); return jsonify(ok=True)
+    alasan = None
+    if aksi == "tolak":
+        alasan = ((request.get_json(silent=True) or {}).get("alasan") or "").strip()[:300] or None
+    q("UPDATE booking SET status=%s, alasan=%s WHERE id=%s", (st, alasan, bid)); return jsonify(ok=True)
 
 init_db()

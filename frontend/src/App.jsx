@@ -34,7 +34,7 @@ export default function App() {
         {user ? (
           <>
             {user.role === "admin" ? <Link to="/admin">Dashboard admin</Link> : <Link to="/riwayat">Pesanan saya</Link>}
-            <span>{user.nama}</span>
+            <span className="akun">Halo, {user.nama}</span>
             <a href="#keluar" onClick={(e) => { e.preventDefault(); logout(); }}>Keluar</a>
           </>
         ) : (
