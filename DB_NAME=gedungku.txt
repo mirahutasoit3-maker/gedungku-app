@@ -1,0 +1,14 @@
+DB_NAME=gedungku
+DB_USER=gedungku
+DB_PASSWORD=Mirawati123+
+SECRET_KEY=jshd7382naskdjw9283hnsd
+ADMIN_EMAIL=mirahutasoit3@gmail.com
+ADMIN_PASSWORD=tugasproject1
+
+
+Langkah berikutnya
+
+1. Buka aplikasi di browser
+
+http://localhost untuk aplikasinya. Seharusnya tampil halaman GedungKu dengan dua gedung contoh (Graha Sumut dan Balai Raya).
+http://localhost:8081 untuk Adminer. Isi System: PostgreSQL, Server: db, lalu Username, Password, dan Database sesuai .env Anda.
