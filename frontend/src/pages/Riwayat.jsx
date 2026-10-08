@@ -26,7 +26,7 @@ export default function Riwayat({ user }) {
             {rows.map((r) => (
               <tr key={r.id}>
                 <td>{r.gedung}</td><td>{r.jenis_acara}</td><td>{r.tanggal}</td><td>{r.sesi}</td>
-                <td>{rp(r.total)}</td><td>{r.status}</td>
+                <td>{rp(r.total)}</td><td>{r.status}{r.status === "ditolak" && r.alasan && <small className="kontak">Alasan: {r.alasan}</small>}</td>
                 <td>{r.status === "menunggu" && <a href="#batal" onClick={(e) => { e.preventDefault(); batal(r.id); }}>Batalkan</a>}</td>
               </tr>
             ))}
