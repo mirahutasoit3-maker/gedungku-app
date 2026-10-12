@@ -1,0 +1,72 @@
+name: CI/CD GedungKu
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Siapkan file .env
+        run: cp .env.example .env
+
+      - name: Build dan jalankan semua container
+        run: docker compose up -d --build
+
+      - name: Uji API
+        run: curl -f --retry 20 --retry-delay 3 --retry-all-errors http://localhost/api/gedung
+
+      - name: Uji halaman frontend
+        run: curl -f http://localhost/
+
+      - name: Tampilkan log jika gagal
+        if: failure()
+        run: docker compose logs
+
+      - name: Matikan container
+        if: always()
+        run: docker compose down -v
+
+  publish:
+    needs: build-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ambil nomor versi dari tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: mirawatihutasoit
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push image API
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            mirawatihutasoit/gedungku-api:${{ env.VERSION }}
+            mirawatihutasoit/gedungku-api:latest
+
+      - name: Push image frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            mirawatihutasoit/gedungku-frontend:${{ env.VERSION }}
+            mirawatihutasoit/gedungku-frontend:latest
