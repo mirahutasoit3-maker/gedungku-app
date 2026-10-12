@@ -1,4 +1,4 @@
-name: CI/CD GedungKu
+name: CI/CD & Quality Control GedungKu
 
 on:
   push:
@@ -11,7 +11,25 @@ permissions:
   contents: read
 
 jobs:
+  # TAHAP 1: Pengecekan Kualitas & Kerapian Kode (Linting)
+  lint:
+    name: Lint code base
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 # Diperbarui ke v4 agar seragam dan modern
+
+      - name: Run Super-Linter
+        uses: github/super-linter@v4
+        env:
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # TAHAP 2: Pengujian Aplikasi (Build & Test)
+
   build-test:
+    name: Build and Test Application
+    needs: lint # Wajib menunggu proses linting sukses tanpa eror
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,8 +54,10 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  # TAHAP 3: Publikasi Aplikasi (Continuous Delivery)
   publish:
-    needs: build-test
+    name: Publish to Docker Hub
+    needs: build-test # Wajib menunggu proses pengujian sukses
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
