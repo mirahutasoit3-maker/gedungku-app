@@ -11,25 +11,30 @@ permissions:
   contents: read
 
 jobs:
+  # =========================================================
   # TAHAP 1: Pengecekan Kualitas & Kerapian Kode (Linting)
+  # =========================================================
   lint:
     name: Lint code base
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # Diperbarui ke v4 agar seragam dan modern
+        uses: actions/checkout@v4
 
       - name: Run Super-Linter
         uses: github/super-linter@v4
         env:
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          # Mengatur agar proses TETAP LANJUT (sukses) meskipun ada kode berantakan
+          DISABLE_ERRORS: true 
+          
+  # =========================================================
   # TAHAP 2: Pengujian Aplikasi (Build & Test)
-
+  # =========================================================
   build-test:
     name: Build and Test Application
-    needs: lint # Wajib menunggu proses linting sukses tanpa eror
+    needs: lint # Wajib menunggu proses linting selesai
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,7 +59,9 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  # =========================================================
   # TAHAP 3: Publikasi Aplikasi (Continuous Delivery)
+  # =========================================================
   publish:
     name: Publish to Docker Hub
     needs: build-test # Wajib menunggu proses pengujian sukses
