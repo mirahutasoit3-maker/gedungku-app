@@ -27,8 +27,8 @@ jobs:
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Mengatur agar proses TETAP LANJUT (sukses) meskipun ada kode berantakan
-          DISABLE_ERRORS: true 
-          
+          DISABLE_ERRORS: true
+
   # =========================================================
   # TAHAP 2: Pengujian Aplikasi (Build & Test)
   # =========================================================
@@ -51,6 +51,14 @@ jobs:
       - name: Uji halaman frontend
         run: curl -f http://localhost/
 
+      # TAMBAHAN 1: menampilkan status container pada halaman Summary
+      - name: Ringkasan status container
+        run: |
+          echo "### Status container" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          docker compose ps >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Tampilkan log jika gagal
         if: failure()
         run: docker compose logs
@@ -67,6 +75,10 @@ jobs:
     needs: build-test # Wajib menunggu proses pengujian sukses
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    # TAMBAHAN 2: environment membuat panel Deployments muncul di halaman repositori
+    environment:
+      name: docker-hub
+      url: https://hub.docker.com/r/mirawatihutasoit/gedungku-api
     steps:
       - uses: actions/checkout@v4
 
@@ -97,3 +109,12 @@ jobs:
           tags: |
             mirawatihutasoit/gedungku-frontend:${{ env.VERSION }}
             mirawatihutasoit/gedungku-frontend:latest
+
+      # TAMBAHAN 3: menampilkan ringkasan image yang terbit pada halaman Summary
+      - name: Ringkasan hasil publikasi
+        run: |
+          echo "### Image berhasil dipublikasikan" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Image | Tag |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| mirawatihutasoit/gedungku-api | ${VERSION}, latest |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| mirawatihutasoit/gedungku-frontend | ${VERSION}, latest |" >> "$GITHUB_STEP_SUMMARY"
