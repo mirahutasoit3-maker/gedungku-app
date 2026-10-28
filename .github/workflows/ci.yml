@@ -11,9 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  # =========================================================
-  # TAHAP 1: Pengecekan Kualitas & Kerapian Kode (Linting)
-  # =========================================================
+  # TAHAP 1: Pengecekan kualitas dan kerapian kode
   lint:
     name: Lint code base
     runs-on: ubuntu-latest
@@ -26,15 +24,12 @@ jobs:
         env:
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Mengatur agar proses TETAP LANJUT (sukses) meskipun ada kode berantakan
           DISABLE_ERRORS: true
 
-  # =========================================================
-  # TAHAP 2: Pengujian Aplikasi (Build & Test)
-  # =========================================================
+  # TAHAP 2: Pengujian aplikasi
   build-test:
     name: Build and Test Application
-    needs: lint # Wajib menunggu proses linting selesai
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +46,6 @@ jobs:
       - name: Uji halaman frontend
         run: curl -f http://localhost/
 
-      # TAMBAHAN 1: menampilkan status container pada halaman Summary
       - name: Ringkasan status container
         run: |
           echo "### Status container" >> "$GITHUB_STEP_SUMMARY"
@@ -67,15 +61,12 @@ jobs:
         if: always()
         run: docker compose down -v
 
-  # =========================================================
-  # TAHAP 3: Publikasi Aplikasi (Continuous Delivery)
-  # =========================================================
+  # TAHAP 3: Publikasi image ke Docker Hub
   publish:
     name: Publish to Docker Hub
-    needs: build-test # Wajib menunggu proses pengujian sukses
+    needs: build-test
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    # TAMBAHAN 2: environment membuat panel Deployments muncul di halaman repositori
     environment:
       name: docker-hub
       url: https://hub.docker.com/r/mirawatihutasoit/gedungku-api
@@ -110,7 +101,6 @@ jobs:
             mirawatihutasoit/gedungku-frontend:${{ env.VERSION }}
             mirawatihutasoit/gedungku-frontend:latest
 
-      # TAMBAHAN 3: menampilkan ringkasan image yang terbit pada halaman Summary
       - name: Ringkasan hasil publikasi
         run: |
           echo "### Image berhasil dipublikasikan" >> "$GITHUB_STEP_SUMMARY"
@@ -118,3 +108,56 @@ jobs:
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
           echo "| mirawatihutasoit/gedungku-api | ${VERSION}, latest |" >> "$GITHUB_STEP_SUMMARY"
           echo "| mirawatihutasoit/gedungku-frontend | ${VERSION}, latest |" >> "$GITHUB_STEP_SUMMARY"
+
+  # TAHAP 4: Deploy dari image hasil publikasi
+  deploy:
+    name: Deploy to Staging
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Siapkan file .env
+        run: cp .env.example .env
+
+      - name: Ambil nomor versi dari tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@v3
+        with:
+          username: mirawatihutasoit
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Unduh image hasil publikasi
+        run: |
+          docker pull mirawatihutasoit/gedungku-api:${VERSION}
+          docker pull mirawatihutasoit/gedungku-frontend:${VERSION}
+          docker tag mirawatihutasoit/gedungku-api:${VERSION} gedungku/api:1.0
+          docker tag mirawatihutasoit/gedungku-frontend:${VERSION} gedungku/frontend:1.0
+
+      - name: Deploy semua container tanpa build ulang
+        run: docker compose up -d --no-build
+
+      - name: Uji API pascadeploy
+        run: curl -f --retry 20 --retry-delay 3 --retry-all-errors http://localhost/api/gedung
+
+      - name: Uji halaman frontend pascadeploy
+        run: curl -f http://localhost/
+
+      - name: Ringkasan status container
+        run: |
+          echo "### Status container (deploy)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          docker compose ps >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Tampilkan log jika gagal
+        if: failure()
+        run: docker compose logs
+
+      - name: Matikan container
+        if: always()
+        run: docker compose down -v
