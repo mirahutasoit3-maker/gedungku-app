@@ -3,6 +3,14 @@ import { Navigate } from "react-router-dom";
 import { api, rp } from "../api.js";
 import { Bintang, PilihBintang } from "../Bintang.jsx"; // [ULASAN]
 
+const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const tgl = (s) => {
+  const [y, m, d] = String(s).split("-");
+  return BULAN[Number(m) - 1] ? `${d} ${BULAN[Number(m) - 1]} ${y}` : s;
+};
+const JAM = { pagi: "08.00-12.00", siang: "13.00-17.00", malam: "19.00-23.00" };
+const huruf = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
 export default function Riwayat({ user }) {
   const [rows, setRows] = useState([]);
   const [buka, setBuka] = useState(null); // [ULASAN] id pesanan yang form ulasannya terbuka
@@ -33,7 +41,7 @@ export default function Riwayat({ user }) {
   return (
     <>
       <h1>Pesanan saya</h1>
-      <div className="tbl">
+      <div className="tbl riwayat">
         <table>
           <thead>
             <tr><th>Gedung</th><th>Acara</th><th>Tanggal</th><th>Sesi</th><th>Total</th><th>Status</th><th></th></tr>
@@ -42,8 +50,15 @@ export default function Riwayat({ user }) {
             {rows.map((r) => (
               <Fragment key={r.id}>
                 <tr>
-                  <td>{r.gedung}</td><td>{r.jenis_acara}</td><td>{r.tanggal}</td><td>{r.sesi}</td>
-                  <td>{rp(r.total)}</td><td>{r.status}</td>
+                  <td>{r.gedung}</td>
+                  <td>{r.jenis_acara}</td>
+                  <td>{tgl(r.tanggal)}</td>
+                  <td>{huruf(r.sesi)}<small className="jam">{JAM[r.sesi]}</small></td>
+                  <td>{rp(r.total)}</td>
+                  <td>
+                    <span className={"badge " + r.status}>{r.status}</span>
+                    {r.status === "ditolak" && r.alasan && <small className="alasan">Alasan: {r.alasan}</small>}
+                  </td>
                   <td>
                     {r.status === "menunggu" && <a href="#batal" onClick={(e) => { e.preventDefault(); batal(r.id); }}>Batalkan</a>}
                     {r.ulasan_id && <Bintang nilai={r.rating} />}

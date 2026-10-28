@@ -96,3 +96,9 @@ button.star{background:none;color:var(--gold);font-size:1.9rem;padding:0 .15rem;
 .ulasan{margin-bottom:.8rem}.verif{color:#1b7a3a;font-size:.8rem;font-weight:600}
 .balasan{background:#fff8ea;border-left:3px solid var(--gold);padding:.5rem .8rem;margin:.5rem 0 0}
 textarea{resize:vertical}
+
+/* Tampilan user: halaman Pesanan saya */
+.riwayat{border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:0 4px 14px rgba(61,10,14,.08)}
+.riwayat th{background:#fff8ea;color:var(--red);font-family:Georgia,serif}
+.riwayat tbody tr:hover{background:#fffaf0}
+.riwayat .alasan{display:block;color:#b3261e;font-size:.78rem;margin-top:.25rem;max-width:240px}
